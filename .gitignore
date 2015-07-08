@@ -1,0 +1,5 @@
+aws-env.sh
+.cabal-sandbox
+cabal.sandbox.config
+dist
+.hdevtools.sock
