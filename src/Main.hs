@@ -122,6 +122,15 @@ createGeodesyMLDemoStack env = do
                                         & pParameterValue ?~ systemName
                             ]
 
+run :: (Show a) => AWST IO a -> IO ()
+run f = do
+    logger <- newLogger Debug stdout
+    env <- getEnv Sydney Discover <&> envLogger .~ logger
+    r <- runAWST env f
+    print r
+    
+
+
 main :: IO ()
 main = do
     logger <- newLogger Debug stdout
