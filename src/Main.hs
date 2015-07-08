@@ -2,15 +2,16 @@
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ViewPatterns    #-}
 
 module Main where
 
-import           Control.Concurrent           (threadDelay)
+import Run
+
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.Trans.AWS
-import           Control.Monad.Trans.Resource
 import qualified Data.ByteString              as BS
 import           Data.ByteString.Builder      (Builder)
 import           Data.Maybe                   (catMaybes)
@@ -21,10 +22,8 @@ import qualified Network.AWS.CloudFormation   as CF
 import           Network.AWS.Data             hiding ((.=))
 import qualified Network.AWS.EC2              as EC2
 import qualified Network.AWS.S3               as S3
-import           Network.HTTP.Conduit
 import           Options.Applicative          ((<|>))
 import qualified Options.Applicative          as OP
-import           System.IO
 
 default (Builder)
 
@@ -83,17 +82,17 @@ deleteTemplate = do
         send_ $ S3.deleteObject templateBucketName templateObjectName
 
 importKey :: KeyPair -> AWST IO ()
-importKey keyPair = do
+importKey k = do
     ks <- map (view EC2.kpiKeyName) . view EC2.dkprKeyPairs <$> send EC2.describeKeyPairs
     unless (fst keyPair `elem` catMaybes ks) $ do
-        info ("Importing key: " <> snd keyPair)
-        key <- liftIO $ BS.readFile (snd keyPair)
-        send_ $ EC2.importKeyPair (fst keyPair) (Base64 key)
+        info ("Importing key: " <> snd k)
+        key <- liftIO $ BS.readFile (snd k)
+        send_ $ EC2.importKeyPair (fst k) (Base64 key)
 
 deleteKey :: KeyPair -> AWST IO ()
-deleteKey keyPair = do
-    info ("Deleting key: " <> fst keyPair)
-    send_ (EC2.deleteKeyPair $ fst keyPair)
+deleteKey (fst -> keyName) = do
+    info ("Deleting key: " <> keyName)
+    send_ (EC2.deleteKeyPair $ keyName)
 
 deleteStack :: AWST IO CF.DeleteStackResponse
 deleteStack = do
@@ -125,12 +124,6 @@ createGeodesyMLDemoStack = do
     uploadTemplate
     importKey keyPair
     createStack
-
-run :: (Show a) => AWST IO a -> IO ()
-run f = do
-    logger <- newLogger Info stdout
-    env <- getEnv Sydney Discover <&> envLogger .~ logger
-    runAWST env f >>= print
 
 data Mode = Create | Delete
 
