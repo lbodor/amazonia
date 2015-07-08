@@ -30,6 +30,7 @@ executable amazonka-test
                        http-client,
                        http-conduit,
                        lens,
+                       optparse-applicative,
                        text,
                        time,
                        mtl,
