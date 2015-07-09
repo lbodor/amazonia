@@ -27,7 +27,8 @@ library
                        amazonka-ec2,
                        amazonka-s3,
                        mtl,
-                       lens
+                       lens,
+                       text
 
 executable amazonka-test
   main-is:             Main.hs
