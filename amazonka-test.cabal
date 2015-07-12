@@ -28,6 +28,7 @@ library
                        amazonka-s3,
                        mtl,
                        lens,
+                       safe,
                        text
 
 executable amazonka-test
