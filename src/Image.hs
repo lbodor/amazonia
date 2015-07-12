@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Image
-    ( launch
+    ( createImage
+    , launch
     ) where
 
 import           Control.Arrow
@@ -11,7 +12,10 @@ import           Control.Monad.Trans
 import           Control.Monad.Trans.AWS
 import           Data.Function           (on)
 import           Data.List
+import           Data.Monoid
 import           Data.Text (Text)
+import qualified Data.Text as T
+import           Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Network.AWS.EC2         as EC2
 import           Safe
 
@@ -53,4 +57,37 @@ assignName resourceIds name =
     send_ $ EC2.createTags
         & EC2.ct1Resources .~ resourceIds
         & EC2.ct1Tags .~ [(EC2.tag "Name" name)]
+
+timestamp :: IO Text
+timestamp = do
+    t <- (T.pack . show) <$> getPOSIXTime
+    return (T.replace " " "_" t)
+
+createImage :: Text -> AWST IO ()
+createImage instanceName = do
+    reservations <- view EC2.dirReservations <$> send describeInstancesRq
+    let instances = concatMap (^. EC2.rInstances) reservations
+        instanceIds = map (^. EC2.i1InstanceId) instances
+
+    case instanceIds of
+        [instanceId] -> do
+            t <- liftIO timestamp
+            liftIO $ print t
+            let rs = send (EC2.createImage instanceId $ instanceName <> "-" <> t)
+            (view EC2.cirImageId <$> rs) >>= maybe
+                (return ())
+                (\imageId -> assignName [imageId] instanceName)
+        []           -> liftIO $ putStrLn "instance name not found"
+        _            -> liftIO $ putStrLn "instance name not unique"
+  where
+    describeInstancesRq = EC2.describeInstances
+        & EC2.di1Filters .~ filters
+
+    filters = [EC2.filter' "tag:Name" & EC2.fValues .~ [instanceName]
+              ,EC2.filter' "instance-state-name" & EC2.fValues .~ ["running"]
+              ]
+
+
+    
+    
 

@@ -29,7 +29,8 @@ library
                        mtl,
                        lens,
                        safe,
-                       text
+                       text,
+                       time
 
 executable amazonka-test
   main-is:             Main.hs
