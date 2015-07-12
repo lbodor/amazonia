@@ -63,7 +63,9 @@ timestamp = do
     t <- (T.pack . show) <$> getPOSIXTime
     return (T.replace " " "_" t)
 
-createImage :: Text -> AWST IO ()
+type ImageId = Text
+
+createImage :: Text -> AWST IO (Either Text ImageId)
 createImage instanceName = do
     reservations <- view EC2.dirReservations <$> send describeInstancesRq
     let instances = concatMap (^. EC2.rInstances) reservations
@@ -75,10 +77,11 @@ createImage instanceName = do
             liftIO $ print t
             let rs = send (EC2.createImage instanceId $ instanceName <> "-" <> t)
             (view EC2.cirImageId <$> rs) >>= maybe
-                (return ())
-                (\imageId -> assignName [imageId] instanceName)
-        []           -> liftIO $ putStrLn "instance name not found"
-        _            -> liftIO $ putStrLn "instance name not unique"
+                (return $ Left "EC2.createImage did not return an image id.")
+                (\imageId -> do assignName [imageId] instanceName
+                                return $ Right imageId)
+        []           -> return $ Left "instance name not found"
+        _            -> return $ Left "instance name not unique"
   where
     describeInstancesRq = EC2.describeInstances
         & EC2.di1Filters .~ filters
@@ -86,7 +89,6 @@ createImage instanceName = do
     filters = [EC2.filter' "tag:Name" & EC2.fValues .~ [instanceName]
               ,EC2.filter' "instance-state-name" & EC2.fValues .~ ["running"]
               ]
-
 
     
     
