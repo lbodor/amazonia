@@ -27,7 +27,8 @@ library
                        lens,
                        safe,
                        text,
-                       time
+                       time,
+                       mmorph
 
 executable amazonia
   main-is:             Main.hs
