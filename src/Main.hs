@@ -10,6 +10,7 @@ import Run
 
 import           Control.Lens
 import           Control.Monad
+import           Control.Monad.Morph
 import           Control.Monad.Reader
 import           Control.Monad.Trans.AWS
 import qualified Data.ByteString              as BS
@@ -101,15 +102,20 @@ deleteStack = do
 
 createStack :: AWST IO CF.CreateStackResponse
 createStack = do
-        info ("Creating stack: " <> stackName)
-        send $ CF.createStack stackName
-            & CF.csTimeoutInMinutes ?~ 5
-            & CF.csTemplateURL ?~ ("https://s3-ap-southeast-2.amazonaws.com/" <> templateBucketName <> "/" <> templateObjectName)
-            & CF.csParameters  .~ [ CF.parameter & CF.pParameterKey   ?~ "KeyPairName"
-                                                 & CF.pParameterValue ?~ fst keyPair
-                                  , CF.parameter & CF.pParameterKey   ?~ "SystemName"
-                                                 & CF.pParameterValue ?~ systemName
-                                  ]
+    info ("Creating stack: " <> stackName)
+    send $ CF.createStack stackName
+        & CF.csTimeoutInMinutes ?~ 5
+        & CF.csTemplateURL      ?~ templateUrl
+        & CF.csParameters
+            .~ [ CF.parameter & CF.pParameterKey   ?~ "KeyPairName"
+                              & CF.pParameterValue ?~ fst keyPair
+               , CF.parameter & CF.pParameterKey   ?~ "SystemName"
+                              & CF.pParameterValue ?~ systemName
+               ]
+  where
+    templateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
+                     <> templateBucketName <> "/"
+                     <> templateObjectName
 
 deleteGeodesyMLDemoStack :: AWST IO CF.DeleteStackResponse
 deleteGeodesyMLDemoStack = do
@@ -134,8 +140,8 @@ argParser = OP.flag'
 
 main :: IO ()
 main = OP.execParser opts >>= \case
-    Create -> run createGeodesyMLDemoStack
-    Delete -> run deleteGeodesyMLDemoStack
+    Create -> run (hoist lift createGeodesyMLDemoStack)
+    Delete -> run (hoist lift deleteGeodesyMLDemoStack)
   where
     opts = OP.info
         (OP.helper <*> argParser)
