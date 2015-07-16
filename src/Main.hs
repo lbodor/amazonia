@@ -151,7 +151,7 @@ parseCommand = OP.subparser $
     OP.command "create-stack" (pure CreateStack `withInfo` "create cloud formation stack") <>
     OP.command "delete-stack" (pure DeleteStack `withInfo` "delete cloud formation stack") <>
     OP.command "run-instance" (runInstanceParser `withInfo` "launch an EC2 instance from a named image") <>
-    OP.command "run-instance" (killInstanceParser `withInfo` "save to an image and terminate an EC2 instance")
+    OP.command "kill-instance" (killInstanceParser `withInfo` "save to an image and terminate an EC2 instance")
 
 main :: IO ()
 main = OP.execParser opts >>= \case
