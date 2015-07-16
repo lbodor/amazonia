@@ -54,6 +54,7 @@ executable amazonia
                        optparse-applicative,
                        mmorph,
                        mtl,
+                       retry,
                        resourcet,
                        text,
                        time

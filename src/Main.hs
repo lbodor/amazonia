@@ -7,6 +7,7 @@
 module Main where
 
 import Run
+import Image
 
 import           Control.Lens
 import           Control.Monad
@@ -17,13 +18,13 @@ import qualified Data.ByteString              as BS
 import           Data.ByteString.Builder      (Builder)
 import           Data.Maybe                   (catMaybes)
 import           Data.Monoid
-import           Data.Text                    (Text)
+import           Data.Text                    (Text )
+import qualified Data.Text                    as T (pack) 
 import           GHC.Exts
 import qualified Network.AWS.CloudFormation   as CF
 import           Network.AWS.Data             hiding ((.=))
 import qualified Network.AWS.EC2              as EC2
 import qualified Network.AWS.S3               as S3
-import           Options.Applicative          ((<|>))
 import qualified Options.Applicative          as OP
 
 default (Builder)
@@ -131,18 +132,34 @@ createGeodesyMLDemoStack = do
     importKey keyPair
     createStack
 
-data Mode = Create | Delete
+data Command = CreateStack
+             | DeleteStack
+             | RunInstance  String
+             | KillInstance String
 
-argParser :: OP.Parser Mode
-argParser = OP.flag'
-        Delete (OP.short 'd' <> OP.long "delete" <> OP.help "delete the stack instead")
-    <|> pure Create
+withInfo :: OP.Parser a -> String -> OP.ParserInfo a
+withInfo opts desc = OP.info (OP.helper <*> opts) $ OP.progDesc desc
+
+runInstanceParser :: OP.Parser Command
+runInstanceParser = RunInstance <$> OP.argument OP.str (OP.metavar "INSTANCE-NAME")
+
+killInstanceParser :: OP.Parser Command
+killInstanceParser = KillInstance <$> OP.argument OP.str (OP.metavar "INSTANCE-NAME")
+
+parseCommand :: OP.Parser Command
+parseCommand = OP.subparser $
+    OP.command "create-stack" (pure CreateStack `withInfo` "create cloud formation stack") <>
+    OP.command "delete-stack" (pure DeleteStack `withInfo` "delete cloud formation stack") <>
+    OP.command "run-instance" (runInstanceParser `withInfo` "launch an EC2 instance from a named image") <>
+    OP.command "run-instance" (killInstanceParser `withInfo` "save to an image and terminate an EC2 instance")
 
 main :: IO ()
 main = OP.execParser opts >>= \case
-    Create -> run (hoist lift createGeodesyMLDemoStack)
-    Delete -> run (hoist lift deleteGeodesyMLDemoStack)
+    CreateStack -> run (hoist lift createGeodesyMLDemoStack)
+    DeleteStack -> run (hoist lift deleteGeodesyMLDemoStack)
+    RunInstance name -> run (launch $ T.pack name)
+    KillInstance name -> run (terminate $ T.pack name)
   where
     opts = OP.info
-        (OP.helper <*> argParser)
-        (OP.fullDesc <> OP.header "Create AWS Stack for GeodesyML Demo")
+        (OP.helper <*> parseCommand)
+        (OP.fullDesc <> OP.header "AWS Utilities")

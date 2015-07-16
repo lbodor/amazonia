@@ -13,7 +13,6 @@ import           Control.Arrow
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Morph
--- import           Control.Monad.Trans
 import           Control.Monad.Trans.AWS
 import           Data.Function           (on)
 import           Data.List
@@ -23,7 +22,6 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Network.AWS.EC2         as EC2
--- import           Safe
 
 latestImageByName :: Text -> AWST (ExceptT Text IO) Text
 latestImageByName name = do
