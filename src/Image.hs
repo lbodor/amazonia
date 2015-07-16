@@ -74,17 +74,15 @@ assignName resourceIds name =
         & EC2.ct1Resources .~ [resourceIds]
         & EC2.ct1Tags .~ [(EC2.tag "Name" name)]
 
-timestamp :: IO Text
-timestamp = do
-    t <- (T.pack . show) <$> getPOSIXTime
-    return (T.replace " " "_" t)
+getTimestamp :: IO Text
+getTimestamp = (T.pack . show) <$> getPOSIXTime
 
 type ImageId = Text
 
 createImage :: Text -> AWST (ExceptT Text IO) ImageId
 createImage name = do
     inst <- getRunningInstance name
-    ts <- liftIO timestamp
+    ts <- liftIO getTimestamp
     let rs = send (EC2.createImage (view EC2.i1InstanceId inst) $ name <> "-" <> ts)
     imageId <- view EC2.cirImageId <$> rs
     case imageId of
