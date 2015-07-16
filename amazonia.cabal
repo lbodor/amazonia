@@ -29,6 +29,7 @@ library
                        lens,
                        mmorph,
                        mtl,
+                       retry,
                        safe,
                        text,
                        time
