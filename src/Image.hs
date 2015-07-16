@@ -6,6 +6,7 @@ module Image
     ( createImage
     , latestImageByName
     , launch
+    , terminate
     ) where
 
 import           Control.Arrow
@@ -82,30 +83,38 @@ timestamp = do
 
 type ImageId = Text
 
-createImage :: Text -> AWST IO (Either Text ImageId)
-createImage instanceName = do
+createImage :: Text -> AWST (ExceptT Text IO) ImageId
+createImage name = do
+    inst <- getRunningInstance name
+    ts <- liftIO timestamp
+    let rs = send (EC2.createImage (view EC2.i1InstanceId inst) $ name <> "-" <> ts)
+    imageId <- view EC2.cirImageId <$> rs
+    case imageId of
+        Nothing -> lift (throwError "EC2.createImage did not return an image id.")
+        Just i  -> do hoist lift (assignName i name)
+                      return i
+
+getRunningInstance :: Text -> AWST (ExceptT Text IO) EC2.Instance
+getRunningInstance name = do
     reservations <- view EC2.dirReservations <$> send describeInstancesRq
     let instances = concatMap (^. EC2.rInstances) reservations
-        instanceIds = map (^. EC2.i1InstanceId) instances
-
-    case instanceIds of
-        [instanceId] -> do
-            t <- liftIO timestamp
-            liftIO $ print t
-            let rs = send (EC2.createImage instanceId $ instanceName <> "-" <> t)
-            (view EC2.cirImageId <$> rs) >>= maybe
-                (return $ Left "EC2.createImage did not return an image id.")
-                (\imageId -> do assignName imageId instanceName
-                                return $ Right imageId)
-        []           -> return $ Left "instance name not found"
-        _            -> return $ Left "instance name not unique"
+    case instances of 
+        [i] -> return i
+        []  -> lift (throwError "instance not found")
+        _   -> lift (throwError "multiple instances found")
   where
     describeInstancesRq = EC2.describeInstances
         & EC2.di1Filters .~ filters
 
-    filters = [EC2.filter' "tag:Name" & EC2.fValues .~ [instanceName]
+    filters = [EC2.filter' "tag:Name" & EC2.fValues .~ [name]
               ,EC2.filter' "instance-state-name" & EC2.fValues .~ ["running"]
               ]
+
+terminate :: Text -> AWST (ExceptT Text IO) ()
+terminate instanceName = do
+    _ <- createImage instanceName
+    instanceId <- view EC2.i1InstanceId <$> getRunningInstance instanceName
+    send_ (EC2.terminateInstances & EC2.tiInstanceIds .~ [instanceId])
 
     
     
