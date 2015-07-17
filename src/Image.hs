@@ -37,8 +37,8 @@ latestImageByName name = do
     filters = EC2.filter' "tag:Name" & EC2.fValues .~ [name]
     sortByDescendingDate = sortBy (flip compare `on` snd)
 
-launch :: Text -> AWST (ExceptT Text IO) Text
-launch name = do
+launch :: Text -> Maybe Text -> AWST (ExceptT Text IO) Text
+launch name elasticIp = do
     imageId <- latestImageByName name
     instance' <- runInstance imageId
     let instanceId = view EC2.i1InstanceId instance'
@@ -49,13 +49,21 @@ launch name = do
 
     case publicIPs of
         []   -> lift (throwError "no IP address returned")
-        [ip] -> return ip
+        [ip] -> case elasticIp of
+                  Just eIp -> do assignIP instanceId eIp
+                                 return eIp
+                  Nothing  -> return ip
         _    -> lift (throwError "multiple IP addresses returned")
   where
     waitForInstance instanceId = await EC2.instanceRunning (describeInstanceRq instanceId)
 
     describeInstanceRq instanceId = EC2.describeInstances
         & EC2.di1InstanceIds .~ [instanceId]
+
+    assignIP instanceId ip = do
+        send_ (EC2.associateAddress
+            & EC2.aa1InstanceId ?~ instanceId
+            & EC2.aa1PublicIp   ?~ ip)
 
 runInstance :: Text -> AWST (ExceptT Text IO) EC2.Instance
 runInstance imageId = do
@@ -112,6 +120,5 @@ terminate instanceName = do
     instanceId <- view EC2.i1InstanceId <$> getRunningInstance instanceName
     send_ (EC2.terminateInstances & EC2.tiInstanceIds .~ [instanceId])
 
-    
     
 
