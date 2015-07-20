@@ -39,13 +39,11 @@ latestImageByName name = do
 
 launch :: Text -> Maybe Text -> AWST (ExceptT Text IO) Text
 launch name elasticIp = do
-    imageId <- latestImageByName name
-    instance' <- runInstance imageId
-    let instanceId = view EC2.i1InstanceId instance'
+    instanceId <- latestImageByName name >>= runInstance <&> view EC2.i1InstanceId
     hoist lift (assignName instanceId name)
     reservations <- view EC2.dirReservations <$> waitForInstance instanceId
     let runningInstances = concatMap (^. EC2.rInstances) reservations
-        publicIPs = catMaybes (map (^. EC2.i1PublicIpAddress) runningInstances)
+        publicIPs = mapMaybe (^. EC2.i1PublicIpAddress) runningInstances
 
     case publicIPs of
         []   -> lift (throwError "no IP address returned")
@@ -55,15 +53,12 @@ launch name elasticIp = do
                   Nothing  -> return ip
         _    -> lift (throwError "multiple IP addresses returned")
   where
-    waitForInstance instanceId = await EC2.instanceRunning (describeInstanceRq instanceId)
+    waitForInstance instanceId = await EC2.instanceRunning $
+      EC2.describeInstances & EC2.di1InstanceIds .~ [instanceId]
 
-    describeInstanceRq instanceId = EC2.describeInstances
-        & EC2.di1InstanceIds .~ [instanceId]
-
-    assignIP instanceId ip = do
-        send_ (EC2.associateAddress
+    assignIP instanceId ip = send_ $ EC2.associateAddress
             & EC2.aa1InstanceId ?~ instanceId
-            & EC2.aa1PublicIp   ?~ ip)
+            & EC2.aa1PublicIp   ?~ ip
 
 runInstance :: Text -> AWST (ExceptT Text IO) EC2.Instance
 runInstance imageId = do
@@ -80,7 +75,7 @@ assignName :: Text -> Text -> AWST IO ()
 assignName resourceIds name =
     send_ $ EC2.createTags
         & EC2.ct1Resources .~ [resourceIds]
-        & EC2.ct1Tags .~ [(EC2.tag "Name" name)]
+        & EC2.ct1Tags .~ [EC2.tag "Name" name]
 
 getTimestamp :: IO Text
 getTimestamp = (T.pack . show) <$> getPOSIXTime

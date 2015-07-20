@@ -95,7 +95,7 @@ importKey k = do
 deleteKey :: KeyPair -> AWST IO ()
 deleteKey (fst -> keyName) = do
     info ("Deleting key: " <> keyName)
-    send_ (EC2.deleteKeyPair $ keyName)
+    send_ (EC2.deleteKeyPair keyName)
 
 deleteStack :: AWST IO CF.DeleteStackResponse
 deleteStack = do
