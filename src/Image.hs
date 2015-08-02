@@ -37,9 +37,10 @@ latestImageByName name = do
     filters = EC2.filter' "tag:Name" & EC2.fValues .~ [name]
     sortByDescendingDate = sortBy (flip compare `on` snd)
 
-launch :: Text -> Maybe Text -> AWST (ExceptT Text IO) Text
-launch name elasticIp = do
-    instanceId <- latestImageByName name >>= runInstance <&> view EC2.i1InstanceId
+launch :: Text -> Text -> Maybe Text -> AWST (ExceptT Text IO) Text
+launch name key elasticIp = do
+    imageId <- latestImageByName name
+    instanceId <- runInstance imageId key <&> view EC2.i1InstanceId
     hoist lift (assignName instanceId name)
     reservations <- view EC2.dirReservations <$> waitForInstance instanceId
     let runningInstances = concatMap (^. EC2.rInstances) reservations
@@ -60,8 +61,8 @@ launch name elasticIp = do
             & EC2.aa1InstanceId ?~ instanceId
             & EC2.aa1PublicIp   ?~ ip
 
-runInstance :: Text -> AWST (ExceptT Text IO) EC2.Instance
-runInstance imageId = do
+runInstance :: Text -> Text -> AWST (ExceptT Text IO) EC2.Instance
+runInstance imageId key = do
     instances <- view EC2.rirInstances <$> send runInstanceRq
     case instances of
         [i] -> return i
@@ -70,6 +71,7 @@ runInstance imageId = do
   where
     runInstanceRq = EC2.runInstances imageId 1 1
         & EC2.riInstanceType ?~ EC2.T2_Medium
+        & EC2.riKeyName ?~ key
 
 assignName :: Text -> Text -> AWST IO ()
 assignName resourceIds name =

@@ -135,8 +135,12 @@ createGeodesyMLDemoStack = do
 
 data Command = CreateStack
              | DeleteStack
-             | RunInstance  String (Maybe String)
-             | KillInstance String
+             | RunInstance 
+               { runInstanceName :: String
+               , runKeyName      :: String
+               , runElasticIP    :: Maybe String
+               }
+             | KillInstance { killInstanceName :: String }
 
 withInfo :: OP.Parser a -> String -> OP.ParserInfo a
 withInfo opts desc = OP.info (OP.helper <*> opts) $ OP.progDesc desc
@@ -144,6 +148,7 @@ withInfo opts desc = OP.info (OP.helper <*> opts) $ OP.progDesc desc
 runInstanceParser :: OP.Parser Command
 runInstanceParser = RunInstance
   <$> OP.argument OP.str (OP.metavar "INSTANCE-NAME")
+  <*> OP.strOption (OP.short 'k' <> OP.long "key-name" <> OP.metavar "KEY-NAME")
   <*> optional (OP.strOption (OP.long "ip" <> OP.metavar "IP"))
 
 killInstanceParser :: OP.Parser Command
@@ -160,7 +165,7 @@ main :: IO ()
 main = OP.execParser opts >>= \case
     CreateStack -> run (hoist lift createGeodesyMLDemoStack)
     DeleteStack -> run (hoist lift deleteGeodesyMLDemoStack)
-    RunInstance name ip -> run (launch (T.pack name) (T.pack <$> ip))
+    RunInstance name key ip -> run (launch (T.pack name) (T.pack key) (T.pack <$> ip))
     KillInstance name -> run (terminate $ T.pack name)
   where
     opts = OP.info
