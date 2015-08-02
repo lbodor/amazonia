@@ -2,136 +2,66 @@
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ViewPatterns    #-}
 
 module Main where
 
-import Run
+import Bucket
 import Image
+import Stack
+import Run
 
 import           Control.Applicative
-import           Control.Lens
-import           Control.Monad
 import           Control.Monad.Morph
-import           Control.Monad.Reader
 import           Control.Monad.Trans.AWS
-import qualified Data.ByteString              as BS
 import           Data.ByteString.Builder      (Builder)
-import           Data.Maybe                   (catMaybes)
 import           Data.Monoid
 import           Data.Text                    (Text )
 import qualified Data.Text                    as T (pack) 
-import           GHC.Exts
 import qualified Network.AWS.CloudFormation   as CF
-import           Network.AWS.Data             hiding ((.=))
-import qualified Network.AWS.EC2              as EC2
-import qualified Network.AWS.S3               as S3
 import qualified Options.Applicative          as OP
 
 default (Builder)
 
-systemName :: Text
-systemName = "GeodesyML Demo"
-
-templateFileName :: FilePath
-templateFileName = "stack-template.json"
-
-templateBucketName :: Text
-templateBucketName = "geodesyml-demo"
-
-templateObjectName :: Text
-templateObjectName = "stack-template"
-
 stackName :: Text
-stackName = "test-stack"
+stackName = "GeodesyML Demo"
 
-type KeyPair = (Text, FilePath)
+bucketName :: Text
+bucketName = "geodesyml-demo"
 
-keyPair :: KeyPair
-keyPair = ("lazar@work", "/home/lazar/.ssh/id_rsa.pub")
+stackTemplateFile :: FilePath
+stackTemplateFile = "stack-template.json"
 
-createBucket :: Text -> AWST IO ()
-createBucket name = do
-    e <- bucketExists name
-    unless e $ do
-        info ("Creating bucket: " <> templateBucketName)
-        send_ $ S3.createBucket templateBucketName
-            & S3.cbCreateBucketConfiguration
-            ?~ (S3.createBucketConfiguration & S3.cbcLocationConstraint ?~ Sydney)
+stackTemplateObjectKey :: Text
+stackTemplateObjectKey = "geodesyml-demo-stack-template"
 
-deleteTemplateBucket :: AWST IO ()
-deleteTemplateBucket = do
-    e <- bucketExists templateBucketName
-    when e $ do
-        info ("Deleting bucket: " <> templateBucketName)
-        send_ $ S3.deleteBucket templateBucketName
+stackTemplateUrl :: Text
+stackTemplateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
+    <> bucketName <> "/" <> stackTemplateObjectKey
 
-bucketExists :: Text -> AWST IO Bool
-bucketExists name = do
-    bucketNames <- map (view S3.bName) . view S3.lbrBuckets <$> send S3.listBuckets
-    return $ elem name bucketNames
+keyPairName :: Text
+keyPairName = "lazar@work"
 
-uploadTemplate :: AWST IO ()
-uploadTemplate = do
-    info ("Creating object: " <> templateObjectName)
-    contents <- fromString <$> liftIO (readFile templateFileName)
-    send_ $ S3.putObject contents templateBucketName templateObjectName
+publicKey :: FilePath
+publicKey = "~/.ssh/lazar@work.pub"
 
-deleteTemplate :: AWST IO ()
-deleteTemplate = do
-    bs <- map (view S3.bName) . view S3.lbrBuckets <$> send S3.listBuckets
-    when (templateBucketName `elem` bs) $ do
-        info ("Deleting object: " <> templateObjectName)
-        send_ $ S3.deleteObject templateBucketName templateObjectName
-
-importKey :: KeyPair -> AWST IO ()
-importKey k = do
-    ks <- map (view EC2.kpiKeyName) . view EC2.dkprKeyPairs <$> send EC2.describeKeyPairs
-    unless (fst keyPair `elem` catMaybes ks) $ do
-        info ("Importing key: " <> snd k)
-        key <- liftIO $ BS.readFile (snd k)
-        send_ $ EC2.importKeyPair (fst k) (Base64 key)
-
-deleteKey :: KeyPair -> AWST IO ()
-deleteKey (fst -> keyName) = do
-    info ("Deleting key: " <> keyName)
-    send_ (EC2.deleteKeyPair keyName)
-
-deleteStack :: AWST IO CF.DeleteStackResponse
-deleteStack = do
-    info ("Deleting stack: " <> stackName)
-    send $ CF.deleteStack stackName
-
-createStack :: AWST IO CF.CreateStackResponse
-createStack = do
-    info ("Creating stack: " <> stackName)
-    send $ CF.createStack stackName
-        & CF.csTimeoutInMinutes ?~ 5
-        & CF.csTemplateURL      ?~ templateUrl
-        & CF.csParameters
-            .~ [ CF.parameter & CF.pParameterKey   ?~ "KeyPairName"
-                              & CF.pParameterValue ?~ fst keyPair
-               , CF.parameter & CF.pParameterKey   ?~ "SystemName"
-                              & CF.pParameterValue ?~ systemName
-               ]
-  where
-    templateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
-                     <> templateBucketName <> "/"
-                     <> templateObjectName
-
-deleteGeodesyMLDemoStack :: AWST IO CF.DeleteStackResponse
-deleteGeodesyMLDemoStack = do
-    deleteTemplate
-    deleteTemplateBucket
-    deleteKey keyPair
-    deleteStack
+parameters :: [(Text, Text)]
+parameters = [ ("KeyPairName", keyPairName)
+             , ("SystemName", stackName)
+             ]
 
 createGeodesyMLDemoStack :: AWST IO CF.CreateStackResponse
 createGeodesyMLDemoStack = do
-    createBucket templateBucketName
-    uploadTemplate
-    importKey keyPair
-    createStack
+    createBucket bucketName
+    uploadObjectFromFile bucketName stackTemplateObjectKey stackTemplateFile
+    uploadKeyPair keyPairName publicKey
+    createStack stackName stackTemplateUrl parameters
+
+deleteGeodesyMLDemoStack :: AWST IO CF.DeleteStackResponse
+deleteGeodesyMLDemoStack = do
+    deleteObject bucketName stackTemplateObjectKey
+    deleteBucket bucketName
+    deleteKeyPair keyPairName
+    deleteStack stackName
 
 data Command = CreateStack
              | DeleteStack
