@@ -3,3 +3,4 @@ aws-env.sh
 cabal.sandbox.config
 dist
 .hdevtools.sock
+*.un~
