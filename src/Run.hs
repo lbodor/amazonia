@@ -18,7 +18,7 @@ import           System.IO
 
 run :: (Show a) => AWST (ExceptT Text IO) a -> IO ()
 run f = do
-    logger <- newLogger Info stdout
+    logger <- newLogger Debug stdout
     region <- read <$> liftIO (getEnv "AWS_REGION")
     env    <- AWS.getEnv region Discover
                 <&> envLogger      .~ logger

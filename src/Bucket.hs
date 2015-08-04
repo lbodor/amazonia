@@ -5,6 +5,7 @@
 
 module Bucket (
       uploadObjectFromFile
+    , uploadObject
     , deleteObject
     , createBucket
     , deleteBucket
@@ -13,7 +14,8 @@ module Bucket (
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Reader
-import           Control.Monad.Trans.AWS
+-- import qualified Control.Monad.Trans.AWS      as AWS
+import           Control.Monad.Trans.AWS      (AWST, send, send_, info, envRegion)
 import           Data.Monoid
 import           Data.Text                    (Text)
 import           GHC.Exts
@@ -43,10 +45,13 @@ deleteBucket name = do
         send_ (S3.deleteBucket name)
 
 uploadObjectFromFile :: Text -> Text -> FilePath -> AWST IO ()
-uploadObjectFromFile bucket key file = do
+uploadObjectFromFile bucket key file =
+    liftIO (readFile file) >>= uploadObject bucket key
+
+uploadObject :: Text -> Text -> String -> AWST IO ()
+uploadObject bucket key object = do
     info ("Creating object: " <> key)
-    contents <- fromString <$> liftIO (readFile file)
-    send_ $ S3.putObject contents bucket key
+    send_ $ S3.putObject (fromString object) bucket key
 
 deleteObject :: Text -> Text -> AWST IO ()
 deleteObject bucket key = do

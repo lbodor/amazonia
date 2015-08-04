@@ -5,28 +5,28 @@
 
 module Main where
 
-import Bucket
 import Image
 import Stack
 import Run
 
 import           Control.Applicative
 import           Control.Monad.Morph
-import           Control.Monad.Trans.AWS
+import           Control.Monad.Trans.AWS      (AWST)
 import           Data.ByteString.Builder      (Builder)
 import           Data.Monoid
 import           Data.Text                    (Text )
 import qualified Data.Text                    as T (pack) 
 import qualified Network.AWS.CloudFormation   as CF
 import qualified Options.Applicative          as OP
+import           System.Environment           (getEnv)
 
 default (Builder)
 
 stackName :: Text
 stackName = "GeodesyML Demo"
 
-bucketName :: Text
-bucketName = "geodesyml-demo"
+bucketName :: IO Text
+bucketName = T.pack <$> getEnv "AWS_BUCKET"
 
 stackTemplateFile :: FilePath
 stackTemplateFile = "stack-template.json"
@@ -34,9 +34,9 @@ stackTemplateFile = "stack-template.json"
 stackTemplateObjectKey :: Text
 stackTemplateObjectKey = "geodesyml-demo-stack-template"
 
-stackTemplateUrl :: Text
-stackTemplateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
-    <> bucketName <> "/" <> stackTemplateObjectKey
+-- stackTemplateUrl :: Text
+-- stackTemplateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
+--     <> bucketName <> "/" <> stackTemplateObjectKey
 
 keyPairName :: Text
 keyPairName = "lazar@work"
@@ -51,15 +51,15 @@ parameters = [ ("KeyPairName", keyPairName)
 
 createGeodesyMLDemoStack :: AWST IO CF.CreateStackResponse
 createGeodesyMLDemoStack = do
-    createBucket bucketName
-    uploadObjectFromFile bucketName stackTemplateObjectKey stackTemplateFile
+    -- createBucket bucketName
+    -- uploadObjectFromFile bucketName stackTemplateObjectKey stackTemplateFile
     uploadKeyPair keyPairName publicKey
-    createStack stackName stackTemplateUrl parameters
+    createStack stackName stackTemplateFile parameters
 
 deleteGeodesyMLDemoStack :: AWST IO CF.DeleteStackResponse
 deleteGeodesyMLDemoStack = do
-    deleteObject bucketName stackTemplateObjectKey
-    deleteBucket bucketName
+    -- deleteObject bucketName stackTemplateObjectKey
+    -- deleteBucket bucketName
     deleteKeyPair keyPairName
     deleteStack stackName
 
