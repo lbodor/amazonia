@@ -17,7 +17,6 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Except
 import           Control.Monad.Morph          (hoist)
--- import           Control.Monad.Reader
 import           Control.Monad.Trans.AWS      (AWST, send, send_, info)
 import           Control.Monad.Trans.Resource (allocate, release)
 import qualified Data.ByteString              as BS
@@ -53,8 +52,9 @@ deleteStack stackName = do
 
 createStack :: Text -> FilePath -> [(Text, Text)] -> AWST IO CF.CreateStackResponse
 createStack stackName template parameters = do
-    bucket <- T.pack <$> (liftIO $ getEnv "AWS-BUCKET")
-    let key = stackName <> "-stacktemplate"
+    bucket <- T.pack <$> (liftIO $ getEnv "AWS_BUCKET")
+    bucketExists bucket >>= \e -> unless e (createBucket bucket)
+    let key = stackName <> "-template"
     (releaseKey, templateUrl) <- allocate
         (do run (hoist lift $ uploadObjectFromFile bucket key template)
             return ("https://s3-ap-southeast-2.amazonaws.com/" <> bucket <> "/" <> key))
