@@ -18,48 +18,36 @@ import           Data.Text                    (Text )
 import qualified Data.Text                    as T (pack) 
 import qualified Network.AWS.CloudFormation   as CF
 import qualified Options.Applicative          as OP
-import           System.Environment           (getEnv)
 
 default (Builder)
 
 stackName :: Text
-stackName = "GeodesyML Demo"
-
-bucketName :: IO Text
-bucketName = T.pack <$> getEnv "AWS_BUCKET"
+stackName = "demo-stack"
 
 stackTemplateFile :: FilePath
 stackTemplateFile = "stack-template.json"
 
 stackTemplateObjectKey :: Text
-stackTemplateObjectKey = "geodesyml-demo-stack-template"
-
--- stackTemplateUrl :: Text
--- stackTemplateUrl = "https://s3-ap-southeast-2.amazonaws.com/"
---     <> bucketName <> "/" <> stackTemplateObjectKey
+stackTemplateObjectKey = "demo-stack-template"
 
 keyPairName :: Text
-keyPairName = "lazar@work"
+keyPairName = "lazar@home"
 
 publicKey :: FilePath
-publicKey = "~/.ssh/lazar@work.pub"
+publicKey = "/home/lazar/.ssh/id_rsa.pub"
 
 parameters :: [(Text, Text)]
 parameters = [ ("KeyPairName", keyPairName)
              , ("SystemName", stackName)
              ]
 
-createGeodesyMLDemoStack :: AWST IO CF.CreateStackResponse
-createGeodesyMLDemoStack = do
-    -- createBucket bucketName
-    -- uploadObjectFromFile bucketName stackTemplateObjectKey stackTemplateFile
+createDemoStack :: AWST IO CF.CreateStackResponse
+createDemoStack = do
     uploadKeyPair keyPairName publicKey
     createStack stackName stackTemplateFile parameters
 
-deleteGeodesyMLDemoStack :: AWST IO CF.DeleteStackResponse
-deleteGeodesyMLDemoStack = do
-    -- deleteObject bucketName stackTemplateObjectKey
-    -- deleteBucket bucketName
+deleteDemoStack :: AWST IO CF.DeleteStackResponse
+deleteDemoStack = do
     deleteKeyPair keyPairName
     deleteStack stackName
 
@@ -93,8 +81,8 @@ parseCommand = OP.subparser $
 
 main :: IO ()
 main = OP.execParser opts >>= \case
-    CreateStack -> run (hoist lift createGeodesyMLDemoStack)
-    DeleteStack -> run (hoist lift deleteGeodesyMLDemoStack)
+    CreateStack -> run (hoist lift createDemoStack)
+    DeleteStack -> run (hoist lift deleteDemoStack)
     RunInstance name key ip -> run (launch (T.pack name) (T.pack key) (T.pack <$> ip))
     KillInstance name -> run (terminate $ T.pack name)
   where
