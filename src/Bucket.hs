@@ -7,6 +7,7 @@ module Bucket (
       uploadObjectFromFile
     , uploadObject
     , deleteObject
+    , bucketExists
     , createBucket
     , deleteBucket
     ) where
@@ -14,7 +15,6 @@ module Bucket (
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Reader
--- import qualified Control.Monad.Trans.AWS      as AWS
 import           Control.Monad.Trans.AWS      (AWST, send, send_, info, envRegion)
 import           Data.Monoid
 import           Data.Text                    (Text)
