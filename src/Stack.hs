@@ -57,7 +57,7 @@ createStack stackName template parameters = do
     let key = stackName <> "-template"
     (releaseKey, templateUrl) <- allocate
         (do run (hoist lift $ uploadObjectFromFile bucket key template)
-            return ("https://s3-ap-southeast-2.amazonaws.com/" <> bucket <> "/" <> key))
+            return ("https://s3-ap-southeast-1.amazonaws.com/" <> bucket <> "/" <> key))
         (\_ -> run (hoist lift $ deleteObject bucket key))
     info ("Creating stack: " <> stackName)
     s <- send $ CF.createStack stackName
